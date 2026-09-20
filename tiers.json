@@ -84,5 +84,20 @@
       { "herdr": "detach", "label": "Detach", "hint": "herdr keeps running; run herdr again to return" },
       { "herdr": "help", "label": "All herdr keys" }
     ]
+  },
+  {
+    "name": "Terminal",
+    "blurb": "Small commands worth remembering. Type these, don't press them.",
+    "commands": true,
+    "entries": [
+      { "cmd": "imv .", "label": "Browse the images in this folder", "hint": "\u2190/\u2192 to step, q to quit" },
+      { "cmd": "open .", "label": "Open this in the file manager", "hint": "A folder, or a file: open shot.png" },
+      { "cmd": "lt", "label": "List this folder as a tree", "hint": "Two levels deep, with git status" },
+      { "cmd": "ff", "label": "Find a file, with a preview", "hint": "Type to filter, Enter to pick" },
+      { "cmd": "z <folder>", "label": "Jump to a folder you've visited", "hint": "Just part of its name, no full path" },
+      { "cmd": "btop", "label": "See what's using the CPU", "hint": "q to quit" },
+      { "cmd": "lazygit", "label": "Git with a visual interface", "hint": "Stage, commit, branch and push" },
+      { "cmd": "tldr <command>", "label": "Examples instead of a manual page", "hint": "tldr tar, tldr ssh, tldr git commit" }
+    ]
   }
 ]
