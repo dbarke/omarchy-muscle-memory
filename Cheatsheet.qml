@@ -5,27 +5,34 @@ import QtQuick
 import qs.Commons
 import qs.Ui
 
-// Staged keybinding cheat sheet.
+// Staged cheat sheet for keys and a few commands.
 //
 // tiers.json only names bindings by their description; the actual keys are
 // read from `omarchy-menu-keybindings --print` every time the sheet opens, so
 // a rebind shows up here without touching this plugin. Entries whose binding
 // no longer exists are left out rather than shown with stale keys.
+//
+// A tier can also hold `cmd` entries: literal shell commands, drawn in a cap
+// of their own. Personal ones stay out of this (public) repo by living in
+// ~/.config/omarchy/cheatsheet-commands.json.
 Item {
   id: root
 
   property string omarchyPath: Quickshell.env("OMARCHY_PATH") || "/usr/share/omarchy"
   property string pluginDir: Qt.resolvedUrl(".").toString().replace(/^file:\/\//, "")
   property string learnedPath: Quickshell.env("HOME") + "/.local/state/omarchy/cheatsheet-learned.json"
+  property string commandsPath: Quickshell.env("HOME") + "/.config/omarchy/cheatsheet-commands.json"
   property var shell: null
   property var manifest: null
 
   property bool opened: false
-  property var tiers: []
+  property var rawTiers: []        // tiers.json as written
+  property var privateCommands: [] // entries from commandsPath
+  property var tiers: []           // rawTiers, with the private commands merged in
   property var bindings: ({})   // description -> [{ mods: [...], key: "..." }]
   property var herdrKeys: ({})  // herdr action -> ["prefix+x", "alt+esc"]
   property string herdrPrefix: ""
-  property var learned: ({})    // description (or "herdr:<action>") -> true
+  property var learned: ({})    // description (or "herdr:<action>", "cmd:<command>") -> true
   property int tierIndex: 0
   property int selectedIndex: -1
   property bool hideLearned: false
@@ -38,6 +45,10 @@ Item {
   property var borderSpec: Border.surfaceSpec("menu", "border", Color.menu.border, Math.max(1, Style.space(2)))
   readonly property int cornerRadius: Style.cornerRadius
   property string fontFamily: Style.font.menuFamily
+  // Commands are drawn in the fontconfig `monospace` alias, not the menu font:
+  // OMARCHY_MENU_FONT may have pointed that at something proportional, and a
+  // command should look like the thing you type.
+  property string monoFamily: Style.font.family
   property int pad: Style.spacing.panelPadding
   property int cardWidth: Math.min(Style.space(1080), panel.width - Style.gapsOut * 2)
   property int cardHeight: Math.min(Style.space(640), panel.height - Style.gapsOut * 2)
@@ -151,8 +162,59 @@ Item {
   }
 
   function loadTiers(text) {
-    try { root.tiers = JSON.parse(text) } catch (e) { root.tiers = [] }
+    var parsed = []
+    try { parsed = JSON.parse(text) } catch (e) { parsed = [] }
+    root.rawTiers = Array.isArray(parsed) ? parsed : []
+    root.composeTiers()
+  }
+
+  // The private commands file is a bare array of `cmd` entries. Missing or
+  // malformed means "no extra commands", never an empty sheet.
+  function loadCommands(text) {
+    var parsed = []
+    try { parsed = JSON.parse(text) } catch (e) { parsed = [] }
+    root.privateCommands = Array.isArray(parsed) ? parsed : []
+    root.composeTiers()
+  }
+
+  // Private entries are appended to the tier flagged "commands": true, so one
+  // tier holds both the shipped commands and the user's own.
+  function composeTiers() {
+    var out = []
+    var merged = false
+    for (var i = 0; i < root.rawTiers.length; i++) {
+      var t = root.rawTiers[i]
+      if (!t || !t.commands) { out.push(t); continue }
+      out.push({ name: t.name, blurb: t.blurb, commands: true,
+                 entries: root.mergeCommands(t.entries || [], root.privateCommands) })
+      merged = true
+    }
+    // Shipped tier edited away but a commands file still there: keep those
+    // commands reachable rather than dropping them without a word.
+    if (!merged && root.privateCommands.length > 0)
+      out.push({ name: "Terminal", blurb: "Small commands worth remembering.",
+                 commands: true, entries: root.privateCommands })
+    root.tiers = out
+    if (root.tierIndex >= out.length) root.tierIndex = Math.max(0, out.length - 1)
     root.rebuild()
+  }
+
+  // Shipped order wins; a private entry naming a shipped command replaces it
+  // in place, so overriding a label doesn't also move the row.
+  function mergeCommands(shipped, extra) {
+    var out = []
+    var at = ({})
+    for (var i = 0; i < shipped.length; i++) {
+      out.push(shipped[i])
+      if (shipped[i] && shipped[i].cmd) at[shipped[i].cmd] = out.length - 1
+    }
+    for (var j = 0; j < extra.length; j++) {
+      var e = extra[j]
+      if (!e || !e.cmd) continue
+      if (at[e.cmd] !== undefined) out[at[e.cmd]] = e
+      else { at[e.cmd] = out.length; out.push(e) }
+    }
+    return out
   }
 
   function loadLearned(text) {
@@ -170,6 +232,11 @@ Item {
     var entries = (tier && tier.entries) || []
     for (var i = 0; i < entries.length; i++) {
       var e = entries[i]
+      // A command is its own key: nothing to look up, so it is never dropped.
+      if (e.cmd) {
+        out.push({ desc: "cmd:" + e.cmd, label: e.label || e.cmd, hint: e.hint || "", kind: "cmd", combos: [[e.cmd]] })
+        continue
+      }
       if (e.herdr) {
         var specs = root.herdrKeys[e.herdr]
         if (!specs) continue
@@ -181,7 +248,7 @@ Item {
             if (specs[c].indexOf("prefix+") !== 0) { spec = specs[c]; break }
           }
         }
-        out.push({ desc: "herdr:" + e.herdr, label: e.label || e.herdr, hint: e.hint || "", combos: root.herdrCombos(spec, e.key) })
+        out.push({ desc: "herdr:" + e.herdr, label: e.label || e.herdr, hint: e.hint || "", kind: "key", combos: root.herdrCombos(spec, e.key) })
         continue
       }
       var found = root.bindings[e.desc]
@@ -192,7 +259,7 @@ Item {
       for (var m = 0; m < found[0].mods.length; m++) caps.push(root.prettyKey(found[0].mods[m]))
       caps.push(e.key || root.prettyKey(found[0].key))
       var combos = [caps]
-      out.push({ desc: e.desc, label: e.label || e.desc, hint: e.hint || "", combos: combos })
+      out.push({ desc: e.desc, label: e.label || e.desc, hint: e.hint || "", kind: "key", combos: combos })
     }
     return out
   }
@@ -210,7 +277,7 @@ Item {
     for (var i = 0; i < entries.length; i++) {
       var e = entries[i]
       if (root.hideLearned && root.learned[e.desc]) continue
-      entryModel.append({ desc: e.desc, label: e.label, hint: e.hint, combosJson: JSON.stringify(e.combos) })
+      entryModel.append({ desc: e.desc, label: e.label, hint: e.hint, kind: e.kind, combosJson: JSON.stringify(e.combos) })
     }
     if (root.selectedIndex >= entryModel.count) root.selectedIndex = entryModel.count - 1
   }
@@ -265,6 +332,15 @@ Item {
     watchChanges: true
     printErrors: false
     onLoaded: root.parseHerdrKeys(text())
+    onFileChanged: reload()
+  }
+
+  FileView {
+    path: root.commandsPath
+    watchChanges: true
+    printErrors: false
+    onLoaded: root.loadCommands(text())
+    onLoadFailed: root.loadCommands("[]")
     onFileChanged: reload()
   }
 
@@ -353,14 +429,22 @@ Item {
             spacing: Style.spacing.xs
 
             Text {
-              text: Object.keys(root.herdrKeys).length ? "Learn Omarchy & herdr" : "Learn Omarchy"
+              // The tab row grows with every tier, and it is anchored to the
+              // right edge; stop before it rather than letting the two draw
+              // on top of each other on a narrow card.
+              width: Math.min(implicitWidth, Math.max(0, tabs.x - Style.spacing.xl))
+              elide: Text.ElideRight
+              text: "Muscle memory"
               color: root.foreground
               font.family: root.fontFamily
               font.pixelSize: Style.font.display
               font.bold: true
             }
             Text {
-              text: root.tiers.length ? root.tiers[root.tierIndex].blurb : ""
+              // The blurb sits below the tabs, so it gets the whole width.
+              width: Math.min(implicitWidth, header.width)
+              elide: Text.ElideRight
+              text: root.tiers.length && root.tiers[root.tierIndex] ? root.tiers[root.tierIndex].blurb : ""
               color: root.foreground
               opacity: 0.6
               font.family: root.fontFamily
@@ -427,6 +511,7 @@ Item {
             required property string desc
             required property string label
             required property string hint
+            required property string kind
             required property string combosJson
 
             readonly property bool isLearned: root.learned[desc] === true
@@ -464,21 +549,61 @@ Item {
                     model: modelData
 
                     delegate: Rectangle {
+                      id: cap
                       required property string modelData
-                      width: Math.max(height, capText.implicitWidth + Style.spacing.lg * 2)
+                      readonly property bool isCmd: row.kind === "cmd"
+                      readonly property int promptWidth: isCmd ? Math.ceil(promptMetrics.advanceWidth) + Style.spacing.sm : 0
+                      readonly property int textWidth: Math.ceil(capMetrics.advanceWidth)
+                      readonly property int naturalWidth: Math.max(height, promptWidth + textWidth + Style.spacing.lg * 2)
+
+                      // A command runs far longer than a key name, and the
+                      // label column starts where the caps end, so an
+                      // unbounded one would shove the label off the row.
+                      // Stop at 60% and let the command elide in its cap.
+                      width: isCmd ? Math.min(naturalWidth, Math.round(row.width * 0.6)) : naturalWidth
                       height: capText.implicitHeight + Style.spacing.sm * 2
                       radius: Math.min(root.cornerRadius, Style.space(5))
                       color: Util.alpha(root.foreground, 0.06)
                       border.width: Math.max(1, Style.space(1))
                       border.color: Util.alpha(root.foreground, 0.3)
 
-                      Text {
-                        id: capText
+                      // capText elides, and an eliding Text lays itself out
+                      // against the width it is given — so sizing the cap from
+                      // its implicitWidth is circular, and every cap collapses
+                      // to a few pixels. Measure the text on its own instead.
+                      TextMetrics { id: capMetrics; font: capText.font; text: cap.modelData }
+                      TextMetrics { id: promptMetrics; font: prompt.font; text: prompt.text }
+
+                      Item {
+                        id: capContent
                         anchors.centerIn: parent
-                        text: parent.modelData
-                        color: root.foreground
-                        font.family: root.fontFamily
-                        font.pixelSize: Style.font.body
+                        height: capText.implicitHeight
+                        width: Math.min(cap.promptWidth + cap.textWidth, cap.width - Style.spacing.lg * 2)
+
+                        Text {
+                          id: prompt
+                          anchors.left: parent.left
+                          anchors.verticalCenter: parent.verticalCenter
+                          visible: cap.isCmd
+                          text: "$"
+                          color: root.foreground
+                          opacity: 0.45
+                          font.family: root.monoFamily
+                          font.pixelSize: Style.font.body
+                        }
+
+                        Text {
+                          id: capText
+                          anchors.right: parent.right
+                          anchors.verticalCenter: parent.verticalCenter
+                          width: parent.width - cap.promptWidth
+                          horizontalAlignment: cap.isCmd ? Text.AlignLeft : Text.AlignHCenter
+                          elide: Text.ElideRight
+                          text: cap.modelData
+                          color: root.foreground
+                          font.family: cap.isCmd ? root.monoFamily : root.fontFamily
+                          font.pixelSize: Style.font.body
+                        }
                       }
                     }
                   }
