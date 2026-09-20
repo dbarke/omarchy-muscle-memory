@@ -50,7 +50,9 @@ Item {
   // command should look like the thing you type.
   property string monoFamily: Style.font.family
   property int pad: Style.spacing.panelPadding
-  property int cardWidth: Math.min(Style.space(1080), panel.width - Style.gapsOut * 2)
+  // 1200, not 1080: five tier tabs and the title share one line, and the
+  // title would rather be whole than fit a narrower card.
+  property int cardWidth: Math.min(Style.space(1200), panel.width - Style.gapsOut * 2)
   property int cardHeight: Math.min(Style.space(640), panel.height - Style.gapsOut * 2)
   property int columns: cardWidth > Style.space(760) ? 2 : 1
   property int rowHeight: Math.max(Style.space(52), Style.font.title + Style.font.bodySmall + Style.spacing.xl * 2)
@@ -429,6 +431,11 @@ Item {
             spacing: Style.spacing.xs
 
             Text {
+              // The tab row grows with every tier, and it is anchored to the
+              // right edge; stop before it rather than letting the two draw
+              // on top of each other on a narrow card.
+              width: Math.min(implicitWidth, Math.max(0, tabs.x - Style.spacing.xl))
+              elide: Text.ElideRight
               text: Object.keys(root.herdrKeys).length ? "Learn Omarchy & herdr" : "Learn Omarchy"
               color: root.foreground
               font.family: root.fontFamily
@@ -436,7 +443,10 @@ Item {
               font.bold: true
             }
             Text {
-              text: root.tiers.length ? root.tiers[root.tierIndex].blurb : ""
+              // The blurb sits below the tabs, so it gets the whole width.
+              width: Math.min(implicitWidth, header.width)
+              elide: Text.ElideRight
+              text: root.tiers.length && root.tiers[root.tierIndex] ? root.tiers[root.tierIndex].blurb : ""
               color: root.foreground
               opacity: 0.6
               font.family: root.fontFamily
@@ -469,7 +479,7 @@ Item {
                 Text {
                   id: tabText
                   anchors.centerIn: parent
-                  text: (index + 1) + "  " + modelData.name + "   " + progress.learned + "/" + progress.total
+                  text: (index + 1) + " " + modelData.name + "  " + progress.learned + "/" + progress.total
                   color: active || (progress.total > 0 && progress.learned === progress.total) ? root.accent : root.foreground
                   opacity: active ? 1 : 0.7
                   font.family: root.fontFamily
