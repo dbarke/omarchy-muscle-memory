@@ -53,6 +53,8 @@ shown in a `$` cap and always listed — there is nothing to look up:
 { "cmd": "imv .", "label": "Browse the images in this folder", "hint": "←/→ to step, q to quit" }
 ```
 
+![The Terminal tier: each command in a `$` cap, what it does on the right](terminal.png)
+
 ### Your own commands
 
 Personal or project-specific commands belong in
