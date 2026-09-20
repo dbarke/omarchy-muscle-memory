@@ -1,7 +1,7 @@
-# omarchy-cheatsheet
+# omarchy-muscle-memory
 
 A staged cheat sheet for [Omarchy](https://omarchy.org/): essentials first,
-power moves later, with the keys you've learned ticked off.
+power moves later, with what you've learned ticked off.
 
 `Super+K` lists every binding, which is great for looking things up and too much
 for learning. This overlay teaches in tiers — Essentials, Faster, Power, a herdr
@@ -17,7 +17,7 @@ ticked and dimmed](preview.png)
 ## Install
 
 ```bash
-omarchy plugin add https://github.com/dbarke/omarchy-cheatsheet.git --enable
+omarchy plugin add https://github.com/dbarke/omarchy-muscle-memory.git --enable
 ```
 
 Then bind a key in `~/.config/hypr/bindings.lua`:
