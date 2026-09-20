@@ -2,10 +2,10 @@
   "schemaVersion": 1,
   "id": "dbarke.cheatsheet",
   "name": "Cheat sheet",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "author": "dbarke",
   "license": "MIT",
-  "description": "A staged keybinding cheat sheet for learning Omarchy: essentials first, power moves later, with keys you have learned ticked off.",
+  "description": "A staged cheat sheet for learning Omarchy \u2014 keys and a few commands: essentials first, power moves later, with what you have learned ticked off.",
   "kinds": [
     "overlay"
   ],
